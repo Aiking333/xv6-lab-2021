@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -94,4 +95,35 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+uint64
+sys_trace(void) {
+  // 在 trace 被调用时
+  // 把系统调用的第 0 个参数传给 trace_mask
+  argint(0, &(myproc()->trace_mask));
+  return 0;
+}
+
+// To collect the amount of free memory, add a function to kernel/kalloc.c
+extern uint64 freebytes(void);
+// To collect the number of processes, add a function to kernel/proc.c
+extern uint64 procnum(void);
+
+uint64
+sys_sysinfo(void) {
+  // 保存系统信息
+  struct sysinfo _sysinfo;
+  _sysinfo.freemem = freebytes();
+  _sysinfo.nproc = procnum();
+
+  // 获取虚拟地址，即 user 给 sysinfo 这个系统调用的指针地址
+  uint64 destaddr;
+  argaddr(0, &destaddr);
+
+  // 把 _sysinfo 从 kernel 拷贝到 user 给定的地址
+  if (copyout(myproc()->pagetable, destaddr, (char*) &_sysinfo, sizeof _sysinfo) < 0) {
+    return -1;
+  }
+
+  return 0;
 }

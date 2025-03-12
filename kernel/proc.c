@@ -54,6 +54,16 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->kstack = KSTACK((int) (p - proc));
   }
+//   // Allocate a page for the process's kernel stack.
+// // Map it high in memory, followed by an invalid
+// // guard page.
+// char *pa = kalloc();
+// if(pa == 0)
+//   panic("kalloc");
+// uint64 va = KSTACK((int) (p - proc));
+// uvmmap(p->kernelpt, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+// p->kstack = va;
+
 }
 
 // Must be called with interrupts disabled,
@@ -84,7 +94,7 @@ myproc(void) {
   pop_off();
   return p;
 }
-
+//自旋锁为每一个进程分配一个自增Pid
 int
 allocpid() {
   int pid;
@@ -93,7 +103,7 @@ allocpid() {
   pid = nextpid;
   nextpid = nextpid + 1;
   release(&pid_lock);
-
+  
   return pid;
 }
 
@@ -134,6 +144,12 @@ found:
     release(&p->lock);
     return 0;
   }
+//   p->kernelpt = proc_kpt_init();
+// if(p->kernelpt == 0){
+//   freeproc(p);
+//   release(&p->lock);
+//   return 0;
+// }
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -164,6 +180,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+//   uvmunmap(p->kernelpt, p->kstack, 1, 1);
+// p->kstack = 0;
 }
 
 // Create a user page table for a given process,
@@ -313,6 +331,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->trace_mask=p->trace_mask;
   release(&np->lock);
 
   return pid;
@@ -429,7 +448,7 @@ wait(uint64 addr)
 
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
+//  never returns.  It loops, doing:
 //  - choose a process to run.
 //  - swtch to start running that process.
 //  - eventually that process transfers control
@@ -439,28 +458,33 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  
+  // uint64 cnt=0;
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+    
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
+      //可运行
       if(p->state == RUNNABLE) {
+        // cnt++;
+        // printf("%d\n",cnt);
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        // proc_inithart(p->kernelpt);
         swtch(&c->context, &p->context);
-
+        // kvminithart();
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
       }
       release(&p->lock);
     }
+    // if(cnt==0) printf("没有可用的\n");
   }
 }
 
@@ -653,4 +677,21 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64
+procnum(void)
+{
+  int np = 0;
+  struct proc *p;
+  // 前文有 struct proc proc[NPROC]; 定义了 proc 是一个数组
+  for (p = proc; p < &proc[NPROC]; ++p) // &proc[NPROC] 是最大的 proc 的地址
+  {
+    // p->lock 必须被 held 在获取 state 时
+    acquire(&p->lock);
+    if (p->state != UNUSED)
+      ++np;
+    release(&p->lock);
+  }
+  return np;
 }

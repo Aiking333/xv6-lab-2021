@@ -193,8 +193,15 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-
-
+	$U/_sleep\
+	$U/_fork\
+	$U/_copy\
+	$U/_open\
+	$U/_pingpong\
+	$U/_primes\
+	$U/_find\
+	$U/_trace\
+	$U/_sysinfotest\
 
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
