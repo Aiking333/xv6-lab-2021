@@ -10,6 +10,7 @@
  * the kernel's page table.
  */
 //2
+//3
 pagetable_t kernel_pagetable;
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
